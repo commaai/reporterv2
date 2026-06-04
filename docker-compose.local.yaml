@@ -1,0 +1,20 @@
+services:
+  reporterv2:
+    container_name: reporterv2
+    image: reporterv2
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8802:8802"
+    environment:
+      REPORTERV2_DATA: /tmp/reporterv2
+      REPORTERV2_HOST: /reporterv2/store
+    volumes:
+      - reporterv2-store:/reporterv2/store
+      - reporterv2-index:/tmp/reporterv2
+    restart: unless-stopped
+
+volumes:
+  reporterv2-store:
+  reporterv2-index:
