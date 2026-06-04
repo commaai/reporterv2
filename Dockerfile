@@ -39,8 +39,8 @@ COPY reporterv2 reporterv2
 RUN chmod +x start.sh
 RUN uv sync --frozen
 
-ENV REPORTERV2_DATA=/tmp/reporterv2
-ENV REPORTERV2_HOST=/reporterv2/store
+ENV REPORTERV2_HOST=/tmp/reporterv2-store
+ENV REPORTERV2_DATA=/tmp/reporterv2-index
 
 EXPOSE 8802
 

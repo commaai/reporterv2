@@ -8,11 +8,11 @@ services:
     ports:
       - "8802:8802"
     environment:
-      REPORTERV2_DATA: /tmp/reporterv2
-      REPORTERV2_HOST: /reporterv2/store
+      REPORTERV2_HOST: /tmp/reporterv2-store
+      REPORTERV2_DATA: /tmp/reporterv2-index
     volumes:
-      - reporterv2-store:/reporterv2/store
-      - reporterv2-index:/tmp/reporterv2
+      - reporterv2-store:/tmp/reporterv2-store
+      - reporterv2-index:/tmp/reporterv2-index
     restart: unless-stopped
 
 volumes:
