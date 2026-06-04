@@ -33,10 +33,9 @@ RUN id -u batman >/dev/null 2>&1 || useradd --create-home --shell /bin/bash batm
 
 WORKDIR /app
 
-COPY pyproject.toml uv.lock README.md start.sh ./
+COPY pyproject.toml uv.lock README.md ./
 COPY reporterv2 reporterv2
 
-RUN chmod +x start.sh
 RUN uv sync --frozen
 
 ENV REPORTERV2_HOST=/tmp/reporterv2-store
@@ -44,4 +43,4 @@ ENV REPORTERV2_DATA=/tmp/reporterv2-index
 
 EXPOSE 8802
 
-CMD ["./start.sh"]
+CMD ["uv", "run", "reporterv2-server"]

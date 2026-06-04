@@ -7,10 +7,12 @@ set -euo pipefail
 mkdir -p "$REPORTERV2_DATA"
 rm -f "$REPORTERV2_DATA/index.db"
 
-echo "[reporterv2] starting background reindex loop"
-uv run python -c "from reporterv2.index import reindex_loop; reindex_loop()" &
+PYTHON="${REPORTERV2_PYTHON:-python}"
 
-exec uv run gunicorn reporterv2.web:app \
+echo "[reporterv2] starting background reindex loop"
+"$PYTHON" -c "from reporterv2.index import reindex_loop; reindex_loop()" &
+
+exec "$PYTHON" -m gunicorn.app.wsgiapp reporterv2.web:app \
   --bind 0.0.0.0:${PORT:-8802} \
   --workers 4 \
   --worker-class gevent \

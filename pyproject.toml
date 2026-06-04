@@ -11,6 +11,9 @@ dependencies = [
   "gunicorn[gevent]",
 ]
 
+[project.scripts]
+reporterv2-server = "reporterv2.server:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

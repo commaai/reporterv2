@@ -29,7 +29,7 @@ reporter = ReporterV2({"training_id": "run-id"})
 ## Server
 
 ```bash
-uv run ./start.sh
+uv run reporterv2-server
 ```
 
 Open `http://localhost:8802`.
