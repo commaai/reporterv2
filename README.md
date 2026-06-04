@@ -1,41 +1,41 @@
 # reporterv2
 
-`reporterv2` contains both the Python client used by training jobs and the web UI/API used to browse runs.
+The incredible comma model reporter!
 
 ## Install
 
-From this repo:
-
 ```bash
 uv pip install .
-python -c "from reporterv2 import ReporterV2; print(ReporterV2)"
 ```
 
-## Python usage
+## Storage
 
-```python
-from reporterv2 import ReporterV2
-```
-
-Set `REPORTERV2_HOST` before using the client. Any fsspec-compatible path will work.
-For standalone local use, a normal filesystem path is enough:
+`REPORTERV2_HOST` must point at an fsspec-compatible store.
+`REPORTERV2_DATA` stores the local SQLite index cache.
 
 ```bash
 export REPORTERV2_HOST=/tmp/reporterv2-store
+export REPORTERV2_DATA=/tmp/reporterv2-index
 ```
 
-`mkv://` storage works when the `mkv` package is installed in the same environment.
+## Client
+
+```python
+from reporterv2 import ReporterV2
+
+reporter = ReporterV2({"training_id": "run-id"})
+```
+
+## Server
+
+```bash
+uv run ./start.sh
+```
+
+Open `http://localhost:8802`.
 
 ## Docker
 
-For a normal local run:
-
 ```bash
 docker compose -f docker-compose.local.yaml up --build
-```
-
-For a temporary local run with an explicit host path:
-
-```bash
-docker compose -f docker-compose.local.yaml run --rm --service-ports -v /reporterv2:/reporterv2 -e REPORTERV2_HOST=/reporterv2 reporterv2
 ```
