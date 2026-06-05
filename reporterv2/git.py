@@ -1,12 +1,18 @@
 import json
+import sys
 import subprocess
 from pathlib import Path
 
 
 def _candidate_roots() -> list[Path]:
+  bases = [Path.cwd(), Path(__file__).resolve().parent]
+
+  if sys.argv and Path(sys.argv[0]).is_file():
+    bases.append(Path(sys.argv[0]).resolve().parent)
+
   candidates = (
     candidate
-    for base in (Path.cwd(), Path(__file__).resolve().parent)
+    for base in bases
     for candidate in (base, *base.parents)
   )
   return list(dict.fromkeys(candidates))
