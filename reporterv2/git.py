@@ -45,7 +45,7 @@ def get_git_info() -> tuple[str, str, str]:
 
   try:
     commit = _run_git(["rev-parse", "HEAD"], cwd=repo_root)
-    diff = _run_git(["diff", "HEAD"], cwd=repo_root)
+    diff = _run_git(["diff", "--submodule=diff", "HEAD"], cwd=repo_root)
     local_branch = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_root)
     if local_branch == "HEAD":
       return "HEAD detached", commit, diff
