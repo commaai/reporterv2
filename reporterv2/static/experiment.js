@@ -63,7 +63,7 @@ async function showExperiment(runIds) {
         <div><span>trainer:</span> ${meta.trainer || "?"}</div>
         <div><span>status:</span> ${meta.status || "?"}</div>
         <div><span>branch:</span> ${meta.branch || "?"}</div>
-        <div><span>dirty:</span> ${meta.dirty === "1" ? "true" : "false"}</div>
+        <div><span>dirty:</span> ${meta.dirty === 1 ? "true" : "false"}</div>
         <div><span>commit:</span> ${meta.commit_hash || "?"}</div>
         <div><span>job:</span> ${meta.slurm_job_id || "?"}</div>
         <div><span>job name:</span> ${meta.slurm_job_name || "?"}</div>
@@ -391,7 +391,7 @@ async function renderGitInfo(runIds, container) {
     }
     let info = document.createElement("div");
     info.className = "git-info";
-    info.innerHTML = `<div><span>branch:</span> ${meta.branch || "?"}${meta.dirty === "1" ? " (dirty)" : ""}</div>` +
+    info.innerHTML = `<div><span>branch:</span> ${meta.branch || "?"}${meta.dirty === 1 ? " (dirty)" : ""}</div>` +
       `<div><span>commit:</span> ${meta.commit_hash || "?"}</div>`;
     col.appendChild(info);
     let pre = document.createElement("pre");
