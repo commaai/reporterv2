@@ -1,5 +1,10 @@
 let gridApi = null;
 let selectedRuns = new Set();
+let restoring = true;  // until selection is restored, so a shared ?q= link isn't wiped on load
+
+// table state in the URL, github-style: ?q=command:gill trainer:path  (+ &page= &selected=)
+const URL_FILTERS = {command: "text", trainer: "text", run_id: "text", last_step: "number"};
+const urlFilter = (t, v) => ({filterType: t, type: t === "number" ? "equals" : "contains", filter: t === "number" ? Number(v) : v});
 
 function initGrid(load = true) {
   function fmtDuration(s) {
@@ -95,6 +100,9 @@ function initGrid(load = true) {
     pagination: true,
     paginationPageSize: 100,
     paginationPageSizeSelector: false,
+    getRowId: p => p.data.run_id,
+    initialState: gridInitialState(),
+    onStateUpdated: gridStateToUrl,
   };
   gridApi = agGrid.createGrid(document.getElementById("table-view"), gridOptions);
   updateCompareBar();
@@ -115,6 +123,50 @@ function updateCompareBar() {
   }
 }
 
+function gridStateToUrl(e) {
+  if (restoring) return;
+  let fm = e.api.getFilterModel(), tokens = [];
+  for (let col of Object.keys(URL_FILTERS)) {
+    let f = fm[col];
+    if (f?.filter != null && (f.type === "contains" || f.type === "equals"))
+      tokens.push(`${col}:${/\s/.test(f.filter) ? `"${f.filter}"` : f.filter}`);
+  }
+  let params = new URLSearchParams();
+  if (tokens.length) params.set("q", tokens.join(" "));
+  let sort = (e.api.getState().sort?.sortModel || []).map(s => `${s.colId}:${s.sort}`);
+  if (sort.length && sort.join(",") !== "created_at:desc") params.set("sort", sort.join(","));
+  let page = e.api.paginationGetCurrentPage();
+  if (page > 0) params.set("page", page + 1);
+  let selected = e.api.getSelectedRows().map(r => r.run_id);
+  if (selected.length) params.set("selected", selected.join(","));
+  let qs = params.toString().replace(/%3A/gi, ":").replace(/%2C/gi, ",");  // : and , stay literal
+  history.replaceState(null, "", qs ? `?${qs}` : location.pathname);
+}
+
+// filter + page restore at grid init (one layout pass, so autoHeight doesn't re-race on a second pass)
+function gridInitialState() {
+  let params = new URLSearchParams(location.search), fm = {};
+  for (let tok of (params.get("q") || "").match(/(?:[^\s"]+|"[^"]*")+/g) || []) {
+    let i = tok.indexOf(":");
+    let col = i > 0 ? tok.slice(0, i) : "command";  // bare word filters command, github-style
+    let val = (i > 0 ? tok.slice(i + 1) : tok).replace(/^"|"$/g, "");
+    if (URL_FILTERS[col]) fm[col] = urlFilter(URL_FILTERS[col], val);
+  }
+  let state = {};
+  if (Object.keys(fm).length) state.filter = {filterModel: fm};
+  if (params.has("page")) state.pagination = {page: params.get("page") - 1};
+  let sort = (params.get("sort") || "").split(",").filter(Boolean).map(t => ({colId: t.split(":")[0], sort: t.split(":")[1]}));
+  if (sort.length) state.sort = {sortModel: sort};
+  return state;
+}
+
+// selection needs the rows present, so it restores after rowData (and doesn't affect layout)
+function restoreSelection() {
+  let ids = new Set((new URLSearchParams(location.search).get("selected") || "").split(",").filter(Boolean));
+  gridApi.forEachNode(n => n.setSelected(ids.has(n.data.run_id)));
+  restoring = false;
+}
+
 async function loadRuns(search) {
   await fetch("/api/reindex", {method: "POST"});
   let url = "/api/runs";
@@ -122,6 +174,7 @@ async function loadRuns(search) {
   let resp = await fetch(url);
   let data = await resp.json();
   gridApi.setGridOption("rowData", data.runs);
+  restoreSelection();
   updateIndexStatus();
 }
 
