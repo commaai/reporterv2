@@ -1,6 +1,6 @@
 let gridApi = null;
 let selectedRuns = new Set();
-let restoring = true;  // until the first restore runs, so a shared ?q= link isn't wiped on init
+let restoring = true;  // until selection is restored, so a shared ?q= link isn't wiped on load
 
 // table state in the URL, github-style: ?q=command:gill trainer:path  (+ &page= &selected=)
 const URL_FILTERS = {command: "text", trainer: "text", run_id: "text", last_step: "number"};
@@ -101,6 +101,7 @@ function initGrid(load = true) {
     paginationPageSize: 100,
     paginationPageSizeSelector: false,
     getRowId: p => p.data.run_id,
+    initialState: gridInitialState(),
     onStateUpdated: gridStateToUrl,
   };
   gridApi = agGrid.createGrid(document.getElementById("table-view"), gridOptions);
@@ -140,8 +141,8 @@ function gridStateToUrl(e) {
   history.replaceState(null, "", qs ? `?${qs}` : location.pathname);
 }
 
-function restoreStateFromUrl() {
-  restoring = true;
+// filter + page restore at grid init (one layout pass, so autoHeight doesn't re-race on a second pass)
+function gridInitialState() {
   let params = new URLSearchParams(location.search), fm = {};
   for (let tok of (params.get("q") || "").match(/(?:[^\s"]+|"[^"]*")+/g) || []) {
     let i = tok.indexOf(":");
@@ -149,10 +150,16 @@ function restoreStateFromUrl() {
     let val = (i > 0 ? tok.slice(i + 1) : tok).replace(/^"|"$/g, "");
     if (URL_FILTERS[col]) fm[col] = urlFilter(URL_FILTERS[col], val);
   }
-  gridApi.setFilterModel(Object.keys(fm).length ? fm : null);
-  if (params.has("page")) gridApi.paginationGoToPage(params.get("page") - 1);
-  let selected = new Set((params.get("selected") || "").split(",").filter(Boolean));
-  gridApi.forEachNode(n => n.setSelected(selected.has(n.data.run_id)));
+  let state = {};
+  if (Object.keys(fm).length) state.filter = {filterModel: fm};
+  if (params.has("page")) state.pagination = {page: params.get("page") - 1};
+  return state;
+}
+
+// selection needs the rows present, so it restores after rowData (and doesn't affect layout)
+function restoreSelection() {
+  let ids = new Set((new URLSearchParams(location.search).get("selected") || "").split(",").filter(Boolean));
+  gridApi.forEachNode(n => n.setSelected(ids.has(n.data.run_id)));
   restoring = false;
 }
 
@@ -163,7 +170,7 @@ async function loadRuns(search) {
   let resp = await fetch(url);
   let data = await resp.json();
   gridApi.setGridOption("rowData", data.runs);
-  restoreStateFromUrl();
+  restoreSelection();
   updateIndexStatus();
 }
 
