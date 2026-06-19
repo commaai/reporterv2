@@ -133,6 +133,8 @@ function gridStateToUrl(e) {
   }
   let params = new URLSearchParams();
   if (tokens.length) params.set("q", tokens.join(" "));
+  let sort = (e.api.getState().sort?.sortModel || []).map(s => `${s.colId}:${s.sort}`);
+  if (sort.length && sort.join(",") !== "created_at:desc") params.set("sort", sort.join(","));
   let page = e.api.paginationGetCurrentPage();
   if (page > 0) params.set("page", page + 1);
   let selected = e.api.getSelectedRows().map(r => r.run_id);
@@ -153,6 +155,8 @@ function gridInitialState() {
   let state = {};
   if (Object.keys(fm).length) state.filter = {filterModel: fm};
   if (params.has("page")) state.pagination = {page: params.get("page") - 1};
+  let sort = (params.get("sort") || "").split(",").filter(Boolean).map(t => ({colId: t.split(":")[0], sort: t.split(":")[1]}));
+  if (sort.length) state.sort = {sortModel: sort};
   return state;
 }
 
