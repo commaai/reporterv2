@@ -99,13 +99,13 @@
   <script>
     window.addEventListener("popstate", () => {
       let p = window.location.pathname.replace(/^\/+/, "");
-      if (p && !p.startsWith("api/") && !p.startsWith("static/") && !p.startsWith("_/")) showExperiment(p.split("_"));
+      if (p && !p.startsWith("api/") && !p.startsWith("static/") && !p.startsWith("_/")) showExperiment(p.split("~"));
       else showTable();
     });
     let path = window.location.pathname.replace(/^\/+/, "");
     if (path && !path.startsWith("api/") && !path.startsWith("static/") && !path.startsWith("_/")) {
       initGrid(false);
-      showExperiment(path.split("_"));
+      showExperiment(path.split("~"));
     } else {
       initGrid();
     }
