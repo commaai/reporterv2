@@ -277,7 +277,16 @@ async function renderMetrics(runIds, container, displayNames) {
             }
           }
           if (stepToVal.size === 0) continue;
-          let label = truncateLabel(runIds.length > 1 ? shortLabel(id, displayNames) : key, LEGEND_LABEL_MAX_LENGTH);
+          let label;
+          if (runIds.length > 1) {
+            label = shortLabel(id, displayNames);
+            if (keys.length > 1) {
+              label += key.startsWith(chartTitle + "/") ? key.slice(chartTitle.length) : "/" + key;
+            }
+          } else {
+            label = key;
+          }
+          label = truncateLabel(label, LEGEND_LABEL_MAX_LENGTH);
           series.push({label, stroke: seriesColor(colorIdx), width: 1.5, spanGaps: true, value: (self, val) => formatMetricValue(val)});
           seriesData.push(stepToVal);
           colorIdx++;
