@@ -164,21 +164,6 @@ function formatLabel(runIds, id, displayNames, key, chartTitle) {
   let suffix = key.slice(chartTitle.length).replace(/\/$/, "");  // certain keys have trailing slash
   let label = runIds.length === 1 ? key : shortLabel(id, displayNames) + suffix;
   return truncateLabel(label, LEGEND_LABEL_MAX_LENGTH);
-
-  // if (runIds.length === 1) {
-  //   return truncateLabel(key, LEGEND_LABEL_MAX_LENGTH);
-  // } else {
-  //   // return key;
-  //   // let lastKey = key.split('/').pop();
-  //   // let lastKey = chartTitle.split(key).pop();
-  //   let lastKey = key.split(chartTitle).pop().replace(/^\//, "");
-  //   console.log("chartTitle", chartTitle, "key", key, "lastKey", lastKey);
-  //   let label = shortLabel(id, displayNames);
-  //   if (lastKey) {
-  //     label += "/" + lastKey;
-  //   }
-  //   return truncateLabel(label, LEGEND_LABEL_MAX_LENGTH);
-  // }
 }
 
 const DEFAULT_LAYOUT = [
