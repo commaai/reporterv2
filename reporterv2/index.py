@@ -13,7 +13,6 @@ from .storage import store_list
 
 REINDEX_INTERVAL = 300
 REINDEX_FETCH_WORKERS = max(1, int(os.getenv("REPORTERV2_REINDEX_FETCH_WORKERS") or 16))
-BUSY_TIMEOUT_MS = 30000
 RUNS_SCHEMA = META_SCHEMA.replace("meta", "runs", 1)
 _last_reindex_elapsed: float | None = None
 
@@ -42,7 +41,6 @@ def get_index_db() -> sqlite3.Connection:
   if "index_db" not in g:
     g.index_db = sqlite3.connect(str(INDEX_DB))
     g.index_db.row_factory = sqlite3.Row
-    g.index_db.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
     init_index_db(g.index_db)
   return g.index_db
 
@@ -133,7 +131,6 @@ def reindex_all() -> int:
   db = sqlite3.connect(str(INDEX_DB))
   try:
     db.row_factory = sqlite3.Row
-    db.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
     db.execute(RUNS_SCHEMA)
     db.execute("BEGIN IMMEDIATE")
 
