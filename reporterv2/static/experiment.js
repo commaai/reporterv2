@@ -162,20 +162,23 @@ function shortLabel(id, displayNames) {
 }
 
 function formatLabel(runIds, id, displayNames, key, chartTitle) {
-  if (runIds.length === 1) {
-    return truncateLabel(key, LEGEND_LABEL_MAX_LENGTH);
-  } else {
-    // return key;
-    // let lastKey = key.split('/').pop();
-    // let lastKey = chartTitle.split(key).pop();
-    let lastKey = key.split(chartTitle).pop().replace(/^\//, "");
-    console.log("chartTitle", chartTitle, "key", key, "lastKey", lastKey);
-    let label = shortLabel(id, displayNames);
-    if (lastKey) {
-      label += "/" + lastKey;
-    }
-    return truncateLabel(label, LEGEND_LABEL_MAX_LENGTH);
-  }
+  let label = runIds.length === 1 ? key : shortLabel(id, displayNames) + key.slice(chartTitle.length);
+  return truncateLabel(label, LEGEND_LABEL_MAX_LENGTH);
+
+  // if (runIds.length === 1) {
+  //   return truncateLabel(key, LEGEND_LABEL_MAX_LENGTH);
+  // } else {
+  //   // return key;
+  //   // let lastKey = key.split('/').pop();
+  //   // let lastKey = chartTitle.split(key).pop();
+  //   let lastKey = key.split(chartTitle).pop().replace(/^\//, "");
+  //   console.log("chartTitle", chartTitle, "key", key, "lastKey", lastKey);
+  //   let label = shortLabel(id, displayNames);
+  //   if (lastKey) {
+  //     label += "/" + lastKey;
+  //   }
+  //   return truncateLabel(label, LEGEND_LABEL_MAX_LENGTH);
+  // }
 }
 
 const DEFAULT_LAYOUT = [
