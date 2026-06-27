@@ -156,7 +156,6 @@ async function activateTab(tabId, runIds, reportData, hparamData, tabs, displayN
 }
 
 function shortLabel(id, displayNames) {
-  // console.log("shortLabel", id, displayNames)
   let name = displayNames && displayNames[id] ? displayNames[id] : id.substring(0, 8);
   return truncateLabel(name, LEGEND_RUN_LABEL_MAX_LENGTH);
 }
@@ -299,10 +298,7 @@ async function renderMetrics(runIds, container, displayNames) {
             }
           }
           if (stepToVal.size === 0) continue;
-          // console.log("key", key)
-          // let label = truncateLabel(runIds.length > 1 ? shortLabel(id, displayNames) + "/" + key.split('/').pop() : key, LEGEND_LABEL_MAX_LENGTH);
           let label = formatLabel(runIds, id, displayNames, key, chartTitle);
-          // console.log('label', label)
           series.push({label, stroke: seriesColor(colorIdx), width: 1.5, spanGaps: true, value: (self, val) => formatMetricValue(val)});
           seriesData.push(stepToVal);
           colorIdx++;
