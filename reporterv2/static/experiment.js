@@ -162,7 +162,8 @@ function shortLabel(id, displayNames) {
 }
 
 function formatLabel(runIds, id, displayNames, key, chartTitle) {
-  let label = runIds.length === 1 ? key : shortLabel(id, displayNames) + key.slice(chartTitle.length);
+  let suffix = key.slice(chartTitle.length).replace(/\/$/, "");  // certain keys have trailing slash
+  let label = runIds.length === 1 ? key : shortLabel(id, displayNames) + suffix;
   return truncateLabel(label, LEGEND_LABEL_MAX_LENGTH);
 
   // if (runIds.length === 1) {
