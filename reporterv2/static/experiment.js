@@ -160,7 +160,7 @@ function shortLabel(id, displayNames) {
   return truncateLabel(name, LEGEND_RUN_LABEL_MAX_LENGTH);
 }
 
-function formatLabel(runIds, id, displayNames, key, chartTitle) {
+function formatLabel(runIds, id, key, chartTitle, displayNames) {
   let suffix = key.slice(chartTitle.length).replace(/\/$/, "");  // certain keys have trailing slash
   let label = runIds.length > 1 ? shortLabel(id, displayNames) + suffix : key;
   return truncateLabel(label, LEGEND_LABEL_MAX_LENGTH);
@@ -283,7 +283,7 @@ async function renderMetrics(runIds, container, displayNames) {
             }
           }
           if (stepToVal.size === 0) continue;
-          let label = formatLabel(runIds, id, displayNames, key, chartTitle);
+          let label = formatLabel(runIds, id, key, chartTitle, displayNames);
           series.push({label, stroke: seriesColor(colorIdx), width: 1.5, spanGaps: true, value: (self, val) => formatMetricValue(val)});
           seriesData.push(stepToVal);
           colorIdx++;
