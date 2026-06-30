@@ -1,10 +1,37 @@
 let gridApi = null;
+let allRuns = [];
 let selectedRuns = new Set();
+let expandedRunGroups = new Set();
+let syncingSelection = false;
 let restoring = true;  // until selection is restored, so a shared ?q= link isn't wiped on load
 
 // table state in the URL, github-style: ?q=command:gill trainer:path  (+ &page= &selected=)
 const URL_FILTERS = {command: "text", trainer: "text", run_id: "text", last_step: "number"};
 const urlFilter = (t, v) => ({filterType: t, type: t === "number" ? "equals" : "contains", filter: t === "number" ? Number(v) : v});
+const RUN_GROUP_COLUMN = "slurm_job_id";  // default slurm job id
+const RUN_GROUP_RE = /^(.+)_(\d+)$/;  // default slurm job array is xxxx_x
+const RUN_GROUP_PRIMARY_SUFFIX = "_0";  // just show the first job of the array
+const runGroup = run => (String(run[RUN_GROUP_COLUMN] || "").match(RUN_GROUP_RE) || [])[1];
+
+function setGroupedRows() {
+  let groups = {};
+  for (let run of allRuns) {
+    let group = runGroup(run);
+    if (group) (groups[group] ||= []).push(run);
+  }
+
+  gridApi.setGridOption("rowData", allRuns.flatMap(run => {
+    let group = runGroup(run), runs = group && groups[group];
+    if (!runs || runs.length < 2) return [run];
+    if (expandedRunGroups.has(group)) return [{...run, _runGroup: group, _runGroupSize: runs.length}];
+    let first = runs.find(row => row[RUN_GROUP_COLUMN] === `${group}${RUN_GROUP_PRIMARY_SUFFIX}`) || runs[0];
+    return run === first ? [{...run, _runGroup: group, _runGroupSize: runs.length, _runGroupIds: runs.map(row => row.run_id)}] : [];
+  }));
+  syncingSelection = true;
+  gridApi.forEachNode(n => n.setSelected((n.data._runGroupIds || [n.data.run_id]).every(id => selectedRuns.has(id))));
+  syncingSelection = false;
+  updateCompareBar();
+}
 
 function initGrid(load = true) {
   function fmtDuration(s) {
@@ -78,6 +105,21 @@ function initGrid(load = true) {
         }
         if (name && commandText) div.appendChild(document.createTextNode(" "));
         div.appendChild(document.createTextNode(commandText));
+        if (p.data?._runGroup) {
+          div.appendChild(document.createTextNode(" "));
+          let grouped = !!p.data._runGroupIds;
+          let btn = document.createElement("button");
+          btn.className = "run-group-toggle";
+          btn.textContent = grouped ? "+" : "-";
+          btn.title = `${grouped ? "ungroup" : "regroup"} ${p.data._runGroup} (${p.data._runGroupSize} runs)`;
+          btn.onclick = e => {
+            e.stopPropagation();
+            if (grouped) expandedRunGroups.add(p.data._runGroup);
+            else expandedRunGroups.delete(p.data._runGroup);
+            setGroupedRows();
+          };
+          div.appendChild(btn);
+        }
         return div;
       }},
   ];
@@ -88,8 +130,13 @@ function initGrid(load = true) {
     animateRows: true,
     defaultColDef: {sortable: true, resizable: true, filter: true, floatingFilter: true},
     onSelectionChanged: () => {
-      selectedRuns = new Set(gridApi.getSelectedRows().map(r => r.run_id));
+      if (syncingSelection) return;
+      selectedRuns = new Set();
+      for (let row of gridApi.getSelectedRows()) {
+        for (let runId of row._runGroupIds || [row.run_id]) selectedRuns.add(runId);
+      }
       updateCompareBar();
+      if (!restoring) gridStateToUrl({api: gridApi});
     },
     enableCellTextSelection: true,
     ensureDomOrder: true,
@@ -100,7 +147,7 @@ function initGrid(load = true) {
     pagination: true,
     paginationPageSize: 100,
     paginationPageSizeSelector: false,
-    getRowId: p => p.data.run_id,
+    getRowId: p => p.data.run_id + (p.data._runGroupIds ? ":group" : ""),
     initialState: gridInitialState(),
     onStateUpdated: gridStateToUrl,
   };
@@ -137,7 +184,7 @@ function gridStateToUrl(e) {
   if (sort.length && sort.join(",") !== "created_at:desc") params.set("sort", sort.join(","));
   let page = e.api.paginationGetCurrentPage();
   if (page > 0) params.set("page", page + 1);
-  let selected = e.api.getSelectedRows().map(r => r.run_id);
+  let selected = [...selectedRuns];
   if (selected.length) params.set("selected", selected.join(","));
   let qs = params.toString().replace(/%3A/gi, ":").replace(/%2C/gi, ",");  // : and , stay literal
   history.replaceState(null, "", qs ? `?${qs}` : location.pathname);
@@ -162,8 +209,8 @@ function gridInitialState() {
 
 // selection needs the rows present, so it restores after rowData (and doesn't affect layout)
 function restoreSelection() {
-  let ids = new Set((new URLSearchParams(location.search).get("selected") || "").split(",").filter(Boolean));
-  gridApi.forEachNode(n => n.setSelected(ids.has(n.data.run_id)));
+  selectedRuns = new Set((new URLSearchParams(location.search).get("selected") || "").split(",").filter(Boolean));
+  setGroupedRows();
   restoring = false;
 }
 
@@ -173,7 +220,7 @@ async function loadRuns(search) {
   if (search) url += `&search=${encodeURIComponent(search)}`;
   let resp = await fetch(url);
   let data = await resp.json();
-  gridApi.setGridOption("rowData", data.runs);
+  allRuns = data.runs;
   restoreSelection();
   updateIndexStatus();
 }
