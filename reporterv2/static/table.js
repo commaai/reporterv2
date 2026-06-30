@@ -111,7 +111,7 @@ function initGrid(load = true) {
           let btn = document.createElement("button");
           btn.className = "run-group-toggle";
           btn.textContent = grouped ? "+" : "-";
-          btn.title = `${grouped ? "ungroup" : "regroup"} run group ${p.data._runGroup} (${p.data._runGroupSize} runs)`;
+          btn.title = `${grouped ? "ungroup" : "regroup"} ${p.data._runGroup} (${p.data._runGroupSize} runs)`;
           btn.onclick = e => {
             e.stopPropagation();
             if (grouped) expandedRunGroups.add(p.data._runGroup);
