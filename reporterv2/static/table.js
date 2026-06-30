@@ -162,7 +162,7 @@ function updateCompareBar() {
   for (let btn of document.querySelectorAll("#compare-bar button")) btn.disabled = !hasSelection;
   let link = document.getElementById("compare-link");
   if (hasSelection) {
-    link.href = "/" + [...selectedRuns].join("~");
+    link.href = "/" + [...selectedRuns].join(",");
     link.classList.remove("disabled");
   } else {
     link.removeAttribute("href");
