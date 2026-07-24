@@ -346,20 +346,29 @@ function renderHparams(runIds, hparamData, container, displayNames) {
   let allKeys = new Set();
   for (let flat of allFlat) for (let k of Object.keys(flat)) allKeys.add(k);
   let keys = [...allKeys].sort();
-  let table = document.createElement("table");
-  table.className = "hparam-table";
-  let thead = `<tr><th>parameter</th>${runIds.map((id, i) => {
-    if (runIds.length === 1) return `<th>value</th>`;
-    let name = displayNames && displayNames[id] ? displayNames[id] : "";
-    return `<th>${id}${name ? `<br>${name}` : ""}</th>`;
-  }).join("")}</tr>`;
-  let tbody = keys.map(k => {
+  let table = Object.assign(document.createElement("table"), { className: "hparam-table" });
+  let headRow = table.appendChild(document.createElement("tr"));
+  headRow.appendChild(document.createElement("th")).textContent = "parameter";
+  for (let id of runIds) {
+    let th = headRow.appendChild(document.createElement("th"));
+    if (runIds.length === 1) {
+      th.textContent = "value";
+    } else {
+      th.append(id);
+      let name = displayNames && displayNames[id];
+      if (name) th.append(document.createElement("br"), name);
+    }
+  }
+  for (let k of keys) {
     let vals = allFlat.map(f => f[k]);
     let differ = runIds.length > 1 && new Set(vals.map(v => JSON.stringify(v))).size > 1;
-    return `<tr${differ ? ' class="hparam-diff"' : ""}><td>${k}</td>${vals.map(v =>
-      `<td>${v === undefined ? "" : String(v)}</td>`).join("")}</tr>`;
-  }).join("");
-  table.innerHTML = thead + tbody;
+    let tr = table.appendChild(document.createElement("tr"));
+    if (differ) tr.className = "hparam-diff";
+    tr.appendChild(document.createElement("td")).textContent = k;
+    for (let v of vals) {
+      tr.appendChild(document.createElement("td")).textContent = v === undefined ? "" : String(v);
+    }
+  }
   let searchInput = document.createElement("input");
   searchInput.type = "text";
   searchInput.placeholder = "search hparams keys...";
