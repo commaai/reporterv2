@@ -346,7 +346,8 @@ function renderHparams(runIds, hparamData, container, displayNames) {
   let allKeys = new Set();
   for (let flat of allFlat) for (let k of Object.keys(flat)) allKeys.add(k);
   let keys = [...allKeys].sort();
-  let table = Object.assign(document.createElement("table"), { className: "hparam-table" });
+  let table = document.createElement("table");
+  table.className = "hparam-table";
   let headRow = table.appendChild(document.createElement("tr"));
   headRow.appendChild(document.createElement("th")).textContent = "parameter";
   for (let id of runIds) {
