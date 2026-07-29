@@ -198,28 +198,37 @@ function applyLayout(rules, metricKeys) {
   return superGroups;
 }
 
-async function renderMetrics(runIds, container, displayNames) {
-  let [allMetrics, layoutRules] = await Promise.all([
+async function renderMetrics(runIds, container, displayNames, xKey = "step", cachedData = null) {
+  let [allMetrics, layoutRules] = cachedData || await Promise.all([
     Promise.all(runIds.map(async id => {
       let resp = await fetch(`/api/runs/${id}/metrics`);
-      let data = await resp.json();
-      return {id, metrics: data.metrics};
+      return {id, metrics: (await resp.json()).metrics};
     })),
     fetch(`/api/runs/${runIds[0]}/layout`).then(r => r.json()),
   ]);
+  for (let {metrics} of allMetrics) {
+    let epochsByStep = new Map(metrics.filter(row => row.epoch != null).map(row => [row.step, row.epoch]));
+    for (let row of metrics)
+      if (row.epoch == null && epochsByStep.has(row.step)) row.epoch = epochsByStep.get(row.step);
+  }
   let metricKeys = new Set();
   for (let {metrics} of allMetrics)
     for (let row of metrics)
       for (let k of Object.keys(row))
-        if (k !== "step") metricKeys.add(k);
+        if (k !== "step" && k !== "epoch") metricKeys.add(k);
   let rules = Array.isArray(layoutRules) && layoutRules.length > 0 ? layoutRules : DEFAULT_LAYOUT;
+  let plots = [];
   let loc = (a, b) => a.localeCompare(b, undefined, {sensitivity: "base"});
   let superGroups = applyLayout(rules, [...metricKeys].sort(loc));
-  let searchInput = document.createElement("input");
-  searchInput.type = "text";
-  searchInput.placeholder = "search charts...";
-  searchInput.style.cssText = "margin-bottom:12px;padding:4px 8px;font-size:13px;border:1px solid #c8d4e3;border-radius:4px;width:100%;";
-  container.appendChild(searchInput);
+  let controls = document.createElement("div");
+  controls.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:12px";
+  controls.innerHTML = `
+    <input type="text" placeholder="search charts..." style="padding:4px 8px;font-size:13px;border:1px solid #c8d4e3;border-radius:4px;flex:1;min-width:0">
+    <button type="button" title="switch all charts between step and epoch" style="padding:4px 10px;font-size:12px;color:#2a3f5f;background:#f8f9fa;border:1px solid #c8d4e3;border-radius:4px;cursor:pointer;white-space:nowrap">x: ${xKey}</button>`;
+  container.appendChild(controls);
+  let searchInput = controls.querySelector("input");
+  let axisToggle = controls.querySelector("button");
+  if (!allMetrics.some(({metrics}) => metrics.some(row => row.epoch != null))) axisToggle.remove();
   let chartsDiv = document.createElement("div");
   chartsDiv.id = "charts";
   container.appendChild(chartsDiv);
@@ -234,6 +243,11 @@ async function renderMetrics(runIds, container, displayNames) {
       }
       section.style.display = anyVisible ? "" : "none";
     }
+  });
+  axisToggle.addEventListener("click", () => {
+    for (let plot of plots) plot.destroy();
+    container.innerHTML = "";
+    renderMetrics(runIds, container, displayNames, xKey === "step" ? "epoch" : "step", [allMetrics, layoutRules]);
   });
   let pinSort = (pin, last) => (a, b) => {
     let aPin = a === pin || a.endsWith("/" + pin);
@@ -268,30 +282,33 @@ async function renderMetrics(runIds, container, displayNames) {
       let plotEl = document.createElement("div");
       box.appendChild(plotEl);
       body.appendChild(box);
-      let series = [{label: "step"}];
-      let stepSet = new Set();
+      let series = [{label: xKey}];
+      let xSet = new Set();
       let seriesData = [];
       let colorIdx = 0;
       for (let i = 0; i < allMetrics.length; i++) {
         let {id, metrics} = allMetrics[i];
         for (let key of keys) {
-          let stepToVal = new Map();
+          let xToVal = new Map();
           for (let row of metrics) {
-            if (row[key] !== undefined) {
-              stepToVal.set(row.step, row[key]);
-              stepSet.add(row.step);
+            if (row[key] !== undefined && row[xKey] != null) {
+              xToVal.set(row[xKey], row[key]);
+              xSet.add(row[xKey]);
             }
           }
-          if (stepToVal.size === 0) continue;
+          if (xToVal.size === 0) continue;
           let label = formatLabel(runIds, id, key, chartTitle, displayNames);
           series.push({label, stroke: seriesColor(colorIdx), width: 1.5, spanGaps: true, value: (self, val) => formatMetricValue(val)});
-          seriesData.push(stepToVal);
+          seriesData.push(xToVal);
           colorIdx++;
         }
       }
-      if (stepSet.size === 0) continue;
-      let xData = [...stepSet].sort((a, b) => a - b);
-      let yDatas = seriesData.map(stepToVal => xData.map(s => stepToVal.get(s) ?? null));
+      if (xSet.size === 0) {
+        box.remove();
+        continue;
+      }
+      let xData = [...xSet].sort((a, b) => a - b);
+      let yDatas = seriesData.map(xToVal => xData.map(x => xToVal.get(x) ?? null));
       let allVals = yDatas.flatMap(d => d.filter(v => v != null && isFinite(v)));
       allVals.sort((a, b) => a - b);
       let yRange = null;
@@ -316,8 +333,9 @@ async function renderMetrics(runIds, container, displayNames) {
         cursor: {drag: {x: true, y: true, uni: 25}},
       };
       let plot = new uPlot(opts, [xData, ...yDatas], plotEl);
+      plots.push(plot);
       attachUPlotDownloadButton(box, plot, `${superTitle}/${chartTitle}`, {
-        xLabel: "step",
+        xLabel: xKey,
         xData: xData,
         series: series.slice(1).map((entry, idx) => ({label: entry.label, values: yDatas[idx]})),
       });
