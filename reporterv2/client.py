@@ -1,6 +1,8 @@
 import json, math, os, signal, socket, sys, tarfile, time
 from collections.abc import Mapping, Sequence
 from multiprocessing import Process
+from queue import Queue
+from threading import Thread
 from typing import Any
 
 from .git import get_git_info
@@ -40,7 +42,6 @@ def write_meta(run_id: str, meta: Mapping[str, Any]) -> None:
 
 
 def write_metrics(run_id: str, meta: Mapping[str, Any], rows: Sequence[Mapping[str, Any]]) -> None:
-  signal.signal(signal.SIGINT, signal.SIG_IGN)
   write_meta(run_id, meta)
   existing = store_get(f"runs/{run_id}/metrics.jsonl")
   content = existing.decode() if existing else ""
@@ -51,6 +52,17 @@ def write_metrics(run_id: str, meta: Mapping[str, Any], rows: Sequence[Mapping[s
     }
     content += json.dumps(clean, default=str) + "\n"
   store_put(f"runs/{run_id}/metrics.jsonl", content)
+
+
+def _write_metrics_queue(
+  run_id: str, metrics_queue: Queue[tuple[dict[str, Any], list[dict[str, Any]]] | None],
+) -> None:
+  while True:
+    item = metrics_queue.get()
+    if item is None:
+      return
+    meta, rows = item
+    write_metrics(run_id, meta, rows)
 
 
 def write_checkpoint(run_id: str, epoch: int, filename: str) -> None:
@@ -127,6 +139,12 @@ class ReporterV2:
     store_put(f"runs/{self.training_id}/diff.patch", diff or "")
     print(f"training id is {self.training_id}")
 
+    self._metrics_queue: Queue[tuple[dict[str, Any], list[dict[str, Any]]] | None] = Queue()
+    self._metrics_thread = Thread(
+      target=_write_metrics_queue, args=(self.training_id, self._metrics_queue), daemon=True,
+    )
+    self._metrics_thread.start()
+
   @property
   def processes(self) -> list[Process]:
     return self._processes
@@ -149,7 +167,6 @@ class ReporterV2:
   def save_metrics(self) -> None:
     if not self._pending:
       return
-    self._compact_processes()
     rows = self._pending
     self._pending = []
     meta = {
@@ -157,9 +174,7 @@ class ReporterV2:
       "last_step": self._last_step,
       "last_epoch": self._last_epoch,
     }
-    process = Process(target=write_metrics, args=(self.training_id, meta, rows))
-    process.start()
-    self._processes.append(process)
+    self._metrics_queue.put((meta, rows))
 
   def save_checkpoint(self, epoch: int, filename: str | None) -> None:
     if not filename:
@@ -170,10 +185,20 @@ class ReporterV2:
     self._processes.append(process)
 
   def write_report(self, data: Any, step: int, name: str, output_type: str) -> None:
-    write_report(self.training_id, data, step, name, output_type)
+    if output_type != "scalar":
+      write_report(self.training_id, data, step, name, output_type)
+      return
+
+    row = {"step": step, "ts": time.time()}
+    flat: dict[str, Any] = {}
+    flatten_dict(flat, "", {name: data}, delim="/")
+    row.update(flat)
+    self._metrics_queue.put(({}, [row]))
 
   def close(self) -> None:
     self.save_metrics()
+    self._metrics_queue.put(None)
+    self._metrics_thread.join()
     for process in self._processes:
       process.join()
 
