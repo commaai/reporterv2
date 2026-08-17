@@ -198,7 +198,30 @@ function applyLayout(rules, metricKeys) {
   return superGroups;
 }
 
-async function renderMetrics(runIds, container, displayNames, xKey = "step", cachedData = null) {
+function smoothSeries(values, smoothing) {
+  if (smoothing === 0) return values;
+  let pointCount = values.filter(Number.isFinite).length;
+  let halfLife = (smoothing / 100) ** 2 * Math.max(1, pointCount / 6);
+  let decay = 0.5 ** (1 / halfLife);
+  let total = 0, weight = 0;
+  return values.map(value => {
+    if (!Number.isFinite(value)) return null;
+    total = total * decay + value;
+    weight = weight * decay + 1;
+    return total / weight;
+  });
+}
+
+function metricRange(seriesData) {
+  let values = seriesData.flat().filter(Number.isFinite).sort((a, b) => a - b);
+  if (values.length <= 4) return null;
+  let lo = values[Math.floor(values.length * 0.05)];
+  let hi = values[Math.ceil(values.length * 0.95) - 1];
+  let pad = (hi - lo) * 0.05 || 1e-6;
+  return [lo - pad, hi + pad];
+}
+
+async function renderMetrics(runIds, container, displayNames, xKey = "step", smoothing = 0, cachedData = null) {
   let [allMetrics, layoutRules] = cachedData || await Promise.all([
     Promise.all(runIds.map(async id => {
       let resp = await fetch(`/api/runs/${id}/metrics`);
@@ -217,16 +240,19 @@ async function renderMetrics(runIds, container, displayNames, xKey = "step", cac
       for (let k of Object.keys(row))
         if (k !== "step" && k !== "epoch") metricKeys.add(k);
   let rules = Array.isArray(layoutRules) && layoutRules.length > 0 ? layoutRules : DEFAULT_LAYOUT;
-  let plots = [];
+  let charts = [];
   let loc = (a, b) => a.localeCompare(b, undefined, {sensitivity: "base"});
   let superGroups = applyLayout(rules, [...metricKeys].sort(loc));
   let controls = document.createElement("div");
   controls.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:12px";
   controls.innerHTML = `
     <input type="text" placeholder="search charts..." style="padding:4px 8px;font-size:13px;border:1px solid #c8d4e3;border-radius:4px;flex:1;min-width:0">
+    <label class="smoothing-control">smooth <input type="range" min="0" max="100" value="${smoothing}" aria-label="chart smoothing"><output>${smoothing}</output></label>
     <button type="button" title="switch all charts between step and epoch" style="padding:4px 10px;font-size:12px;color:#2a3f5f;background:#f8f9fa;border:1px solid #c8d4e3;border-radius:4px;cursor:pointer;white-space:nowrap">x: ${xKey}</button>`;
   container.appendChild(controls);
-  let searchInput = controls.querySelector("input");
+  let searchInput = controls.querySelector('input[type="text"]');
+  let smoothingSlider = controls.querySelector('input[type="range"]');
+  let smoothingOutput = controls.querySelector("output");
   let axisToggle = controls.querySelector("button");
   if (!allMetrics.some(({metrics}) => metrics.some(row => row.epoch != null))) axisToggle.remove();
   let chartsDiv = document.createElement("div");
@@ -245,9 +271,20 @@ async function renderMetrics(runIds, container, displayNames, xKey = "step", cac
     }
   });
   axisToggle.addEventListener("click", () => {
-    for (let plot of plots) plot.destroy();
+    for (let {plot} of charts) plot.destroy();
     container.innerHTML = "";
-    renderMetrics(runIds, container, displayNames, xKey === "step" ? "epoch" : "step", [allMetrics, layoutRules]);
+    renderMetrics(runIds, container, displayNames, xKey === "step" ? "epoch" : "step", smoothing, [allMetrics, layoutRules]);
+  });
+  smoothingSlider.addEventListener("input", () => {
+    smoothing = smoothingSlider.valueAsNumber;
+    smoothingOutput.textContent = smoothing;
+    for (let chart of charts) {
+      let smoothedData = chart.rawData.map(data => smoothSeries(data, smoothing));
+      chart.yRange = metricRange(smoothedData);
+      for (let i = 0; i < chart.rawData.length; i++)
+        chart.plot.setSeries(i + 1, {show: smoothing > 0}, false);
+      chart.plot.setData([chart.xData, ...chart.rawData, ...smoothedData]);
+    }
   });
   let pinSort = (pin, last) => (a, b) => {
     let aPin = a === pin || a.endsWith("/" + pin);
@@ -282,7 +319,7 @@ async function renderMetrics(runIds, container, displayNames, xKey = "step", cac
       let plotEl = document.createElement("div");
       box.appendChild(plotEl);
       body.appendChild(box);
-      let series = [{label: xKey}];
+      let metricSeries = [];
       let xSet = new Set();
       let seriesData = [];
       let colorIdx = 0;
@@ -298,7 +335,7 @@ async function renderMetrics(runIds, container, displayNames, xKey = "step", cac
           }
           if (xToVal.size === 0) continue;
           let label = formatLabel(runIds, id, key, chartTitle, displayNames);
-          series.push({label, stroke: seriesColor(colorIdx), width: 1.5, spanGaps: true, value: (self, val) => formatMetricValue(val)});
+          metricSeries.push({label, stroke: seriesColor(colorIdx), width: 1.5, spanGaps: true, value: (self, val) => formatMetricValue(val)});
           seriesData.push(xToVal);
           colorIdx++;
         }
@@ -309,21 +346,18 @@ async function renderMetrics(runIds, container, displayNames, xKey = "step", cac
       }
       let xData = [...xSet].sort((a, b) => a - b);
       let yDatas = seriesData.map(xToVal => xData.map(x => xToVal.get(x) ?? null));
+      let smoothedData = yDatas.map(data => smoothSeries(data, smoothing));
       let allVals = yDatas.flatMap(d => d.filter(v => v != null && isFinite(v)));
       allVals.sort((a, b) => a - b);
-      let yRange = null;
-      if (allVals.length > 4) {
-        let lo = allVals[Math.floor(allVals.length * 0.05)];
-        let hi = allVals[Math.ceil(allVals.length * 0.95) - 1];
-        let pad = (hi - lo) * 0.05 || 1e-6;
-        yRange = [lo - pad, hi + pad];
-      }
+      let chart = {xData, rawData: yDatas, yRange: metricRange(smoothedData), plot: null};
+      let rawSeries = metricSeries.map(entry => ({...entry, class: "raw-series", show: smoothing > 0, auto: false, width: 1, alpha: 0.15}));
+      let series = [{label: xKey}, ...rawSeries, ...metricSeries];
       let chartW = Math.min(570, window.innerWidth - 80);
       let opts = {
         width: chartW, height: 280,
         scales: {
           x: {time: false},
-          y: yRange ? {range: () => yRange} : {},
+          y: {range: (self, min, max) => chart.yRange || uPlot.rangeNum(min, max, 0.1, true)},
         },
         axes: [
           {stroke: "#7f8fa6", grid: {stroke: "#e1e5ea"}},
@@ -332,12 +366,13 @@ async function renderMetrics(runIds, container, displayNames, xKey = "step", cac
         series: series,
         cursor: {drag: {x: true, y: true, uni: 25}},
       };
-      let plot = new uPlot(opts, [xData, ...yDatas], plotEl);
-      plots.push(plot);
+      let plot = new uPlot(opts, [xData, ...yDatas, ...smoothedData], plotEl);
+      chart.plot = plot;
+      charts.push(chart);
       attachUPlotDownloadButton(box, plot, `${superTitle}/${chartTitle}`, {
         xLabel: xKey,
         xData: xData,
-        series: series.slice(1).map((entry, idx) => ({label: entry.label, values: yDatas[idx]})),
+        series: metricSeries.map((entry, idx) => ({label: entry.label, values: yDatas[idx]})),
       });
       plotEl.addEventListener("dblclick", () => {
         let fullMin = allVals[0], fullMax = allVals[allVals.length - 1];
