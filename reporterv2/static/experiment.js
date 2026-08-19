@@ -198,9 +198,8 @@ function applyLayout(rules, metricKeys) {
   return superGroups;
 }
 
-function smoothSeries(values, smoothing) {
+function smoothSeries(values, smoothing, pointCount) {
   if (smoothing === 0) return values;
-  let pointCount = values.filter(Number.isFinite).length;
   let halfLife = (smoothing / 100) ** 2 * Math.max(1, pointCount / 6);
   let decay = 0.5 ** (1 / halfLife);
   let total = 0, weight = 0;
@@ -247,12 +246,11 @@ async function renderMetrics(runIds, container, displayNames, xKey = "step", smo
   controls.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:12px";
   controls.innerHTML = `
     <input type="text" placeholder="search charts..." style="padding:4px 8px;font-size:13px;border:1px solid #c8d4e3;border-radius:4px;flex:1;min-width:0">
-    <label class="smoothing-control">smooth <input type="range" min="0" max="100" value="${smoothing}" aria-label="chart smoothing"><output>${smoothing}</output></label>
+    <input class="smoothing-control" type="range" min="0" max="100" value="${smoothing}" aria-label="chart smoothing">
     <button type="button" title="switch all charts between step and epoch" style="padding:4px 10px;font-size:12px;color:#2a3f5f;background:#f8f9fa;border:1px solid #c8d4e3;border-radius:4px;cursor:pointer;white-space:nowrap">x: ${xKey}</button>`;
   container.appendChild(controls);
   let searchInput = controls.querySelector('input[type="text"]');
   let smoothingSlider = controls.querySelector('input[type="range"]');
-  let smoothingOutput = controls.querySelector("output");
   let axisToggle = controls.querySelector("button");
   if (!allMetrics.some(({metrics}) => metrics.some(row => row.epoch != null))) axisToggle.remove();
   let chartsDiv = document.createElement("div");
@@ -277,9 +275,8 @@ async function renderMetrics(runIds, container, displayNames, xKey = "step", smo
   });
   smoothingSlider.addEventListener("input", () => {
     smoothing = smoothingSlider.valueAsNumber;
-    smoothingOutput.textContent = smoothing;
     for (let chart of charts) {
-      let smoothedData = chart.rawData.map(data => smoothSeries(data, smoothing));
+      let smoothedData = chart.rawData.map(data => smoothSeries(data, smoothing, chart.pointCount));
       chart.yRange = metricRange(smoothedData);
       for (let i = 0; i < chart.rawData.length; i++)
         chart.plot.setSeries(i + 1, {show: smoothing > 0}, false);
@@ -346,10 +343,11 @@ async function renderMetrics(runIds, container, displayNames, xKey = "step", smo
       }
       let xData = [...xSet].sort((a, b) => a - b);
       let yDatas = seriesData.map(xToVal => xData.map(x => xToVal.get(x) ?? null));
-      let smoothedData = yDatas.map(data => smoothSeries(data, smoothing));
+      let pointCount = Math.max(...yDatas.map(data => data.filter(Number.isFinite).length));
+      let smoothedData = yDatas.map(data => smoothSeries(data, smoothing, pointCount));
       let allVals = yDatas.flatMap(d => d.filter(v => v != null && isFinite(v)));
       allVals.sort((a, b) => a - b);
-      let chart = {xData, rawData: yDatas, yRange: metricRange(smoothedData), plot: null};
+      let chart = {xData, rawData: yDatas, pointCount, yRange: metricRange(smoothedData), plot: null};
       let rawSeries = metricSeries.map(entry => ({...entry, class: "raw-series", show: smoothing > 0, auto: false, width: 1, alpha: 0.15}));
       let series = [{label: xKey}, ...rawSeries, ...metricSeries];
       let chartW = Math.min(570, window.innerWidth - 80);
