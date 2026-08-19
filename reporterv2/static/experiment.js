@@ -220,19 +220,15 @@ function metricRange(seriesData) {
   return [lo - pad, hi + pad];
 }
 
-async function renderMetrics(runIds, container, displayNames, xKey = "step", smoothing = 0, cachedData = null) {
-  let [allMetrics, layoutRules] = cachedData || await Promise.all([
+async function renderMetrics(runIds, container, displayNames) {
+  let [allMetrics, layoutRules] = await Promise.all([
     Promise.all(runIds.map(async id => {
       let resp = await fetch(`/api/runs/${id}/metrics`);
       return {id, metrics: (await resp.json()).metrics};
     })),
     fetch(`/api/runs/${runIds[0]}/layout`).then(r => r.json()),
   ]);
-  for (let {metrics} of allMetrics) {
-    let epochsByStep = new Map(metrics.filter(row => row.epoch != null).map(row => [row.step, row.epoch]));
-    for (let row of metrics)
-      if (row.epoch == null && epochsByStep.has(row.step)) row.epoch = epochsByStep.get(row.step);
-  }
+  let smoothing = 0;
   let metricKeys = new Set();
   for (let {metrics} of allMetrics)
     for (let row of metrics)
@@ -246,13 +242,10 @@ async function renderMetrics(runIds, container, displayNames, xKey = "step", smo
   controls.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:12px";
   controls.innerHTML = `
     <input type="text" placeholder="search charts..." style="padding:4px 8px;font-size:13px;border:1px solid #c8d4e3;border-radius:4px;flex:1;min-width:0">
-    <input class="smoothing-control" type="range" min="0" max="100" value="${smoothing}" aria-label="chart smoothing">
-    <button type="button" title="switch all charts between step and epoch" style="padding:4px 10px;font-size:12px;color:#2a3f5f;background:#f8f9fa;border:1px solid #c8d4e3;border-radius:4px;cursor:pointer;white-space:nowrap">x: ${xKey}</button>`;
+    <input class="smoothing-control" type="range" min="0" max="100" value="${smoothing}" aria-label="chart smoothing">`;
   container.appendChild(controls);
   let searchInput = controls.querySelector('input[type="text"]');
   let smoothingSlider = controls.querySelector('input[type="range"]');
-  let axisToggle = controls.querySelector("button");
-  if (!allMetrics.some(({metrics}) => metrics.some(row => row.epoch != null))) axisToggle.remove();
   let chartsDiv = document.createElement("div");
   chartsDiv.id = "charts";
   container.appendChild(chartsDiv);
@@ -267,11 +260,6 @@ async function renderMetrics(runIds, container, displayNames, xKey = "step", smo
       }
       section.style.display = anyVisible ? "" : "none";
     }
-  });
-  axisToggle.addEventListener("click", () => {
-    for (let {plot} of charts) plot.destroy();
-    container.innerHTML = "";
-    renderMetrics(runIds, container, displayNames, xKey === "step" ? "epoch" : "step", smoothing, [allMetrics, layoutRules]);
   });
   smoothingSlider.addEventListener("input", () => {
     smoothing = smoothingSlider.valueAsNumber;
@@ -325,9 +313,9 @@ async function renderMetrics(runIds, container, displayNames, xKey = "step", smo
         for (let key of keys) {
           let xToVal = new Map();
           for (let row of metrics) {
-            if (row[key] !== undefined && row[xKey] != null) {
-              xToVal.set(row[xKey], row[key]);
-              xSet.add(row[xKey]);
+            if (row[key] !== undefined && row.step != null) {
+              xToVal.set(row.step, row[key]);
+              xSet.add(row.step);
             }
           }
           if (xToVal.size === 0) continue;
@@ -349,7 +337,7 @@ async function renderMetrics(runIds, container, displayNames, xKey = "step", smo
       allVals.sort((a, b) => a - b);
       let chart = {xData, rawData: yDatas, pointCount, yRange: metricRange(smoothedData), plot: null};
       let rawSeries = metricSeries.map(entry => ({...entry, class: "raw-series", show: smoothing > 0, auto: false, width: 1, alpha: 0.15}));
-      let series = [{label: xKey}, ...rawSeries, ...metricSeries];
+      let series = [{label: "step"}, ...rawSeries, ...metricSeries];
       let chartW = Math.min(570, window.innerWidth - 80);
       let opts = {
         width: chartW, height: 280,
@@ -368,7 +356,7 @@ async function renderMetrics(runIds, container, displayNames, xKey = "step", smo
       chart.plot = plot;
       charts.push(chart);
       attachUPlotDownloadButton(box, plot, `${superTitle}/${chartTitle}`, {
-        xLabel: xKey,
+        xLabel: "step",
         xData: xData,
         series: metricSeries.map((entry, idx) => ({label: entry.label, values: yDatas[idx]})),
       });
