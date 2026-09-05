@@ -216,8 +216,7 @@ function metricRange(seriesData) {
   if (values.length <= 4) return null;
   let lo = values[Math.floor(values.length * 0.05)];
   let hi = values[Math.ceil(values.length * 0.95) - 1];
-  let pad = (hi - lo) * 0.05 || 1e-6;
-  return [lo - pad, hi + pad];
+  return uPlot.rangeNum(lo, hi, 0.05, true);
 }
 
 async function renderMetrics(runIds, container, displayNames) {
@@ -361,10 +360,9 @@ async function renderMetrics(runIds, container, displayNames) {
         series: metricSeries.map((entry, idx) => ({label: entry.label, values: yDatas[idx]})),
       });
       plotEl.addEventListener("dblclick", () => {
-        let fullMin = allVals[0], fullMax = allVals[allVals.length - 1];
-        let fullPad = (fullMax - fullMin) * 0.05 || 1e-6;
+        let [min, max] = uPlot.rangeNum(allVals[0], allVals[allVals.length - 1], 0.05, true);
         plot.setScale("x", {min: xData[0], max: xData[xData.length - 1]});
-        plot.setScale("y", {min: fullMin - fullPad, max: fullMax + fullPad});
+        plot.setScale("y", {min, max});
       });
     }
   }
