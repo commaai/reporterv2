@@ -1,7 +1,8 @@
-import json, os, re, subprocess, traceback
+import json, math, os, re, subprocess, traceback
 import shutil
 from pathlib import Path
 from flask import Flask, Response, jsonify, request, send_from_directory
+from flask.json.provider import DefaultJSONProvider
 
 from .client import read_meta, write_meta
 from .index import INDEX_DB, close_index_db as close_index_db_connection, get_index_db, get_index_status, reindex_all, sync_to_index
@@ -10,8 +11,25 @@ from .storage import store_delete, store_get, store_list, store_size
 STATUS_OK = "OK"
 SAFE_RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
+def _browser_safe_json(value):
+  if isinstance(value, float) and not math.isfinite(value):
+    return None
+  if isinstance(value, dict):
+    return {key: _browser_safe_json(item) for key, item in value.items()}
+  if isinstance(value, (list, tuple)):
+    return [_browser_safe_json(item) for item in value]
+  return value
+
+
+class BrowserJSONProvider(DefaultJSONProvider):
+  def dumps(self, obj, **kwargs):
+    kwargs["allow_nan"] = False
+    return super().dumps(_browser_safe_json(obj), **kwargs)
+
+
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 app = Flask(__name__, static_folder=str(STATIC_DIR), static_url_path="/static")
+app.json = BrowserJSONProvider(app)
 
 @app.teardown_appcontext
 def close_index_db(exc: BaseException | None) -> None:
@@ -143,7 +161,7 @@ def get_metrics(run_id: str) -> Response:
     if not line:
       continue
     try:
-      row = json.loads(line.replace("NaN", "null").replace("Infinity", "null").replace("-Infinity", "null"))
+      row = json.loads(line)
     except json.JSONDecodeError:
       continue
     rows.append(row)
