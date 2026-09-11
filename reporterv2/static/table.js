@@ -33,17 +33,26 @@ function setGroupedRows() {
   updateCompareBar();
 }
 
+function fmtDuration(s) {
+  if (s == null) return "";
+  s = Number(s);
+  if (!Number.isFinite(s) || s < 0) s = 0;
+  s = Math.floor(s);
+  let d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function getRunDuration(run) {
+  let start = Number(run.created_at);
+  if (!Number.isFinite(start) || start <= 0) return null;
+  let end = run.last_timestamp == null ? Date.now() / 1000 : Number(run.last_timestamp);
+  if (!Number.isFinite(end)) return 0;
+  return Math.max(0, end - start);
+}
+
 function initGrid(load = true) {
-  function fmtDuration(s) {
-    if (s == null) return "";
-    s = Number(s);
-    if (!Number.isFinite(s) || s < 0) s = 0;
-    s = Math.floor(s);
-    let d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
-    if (d > 0) return `${d}d ${h}h`;
-    if (h > 0) return `${h}h ${m}m`;
-    return `${m}m`;
-  }
   function getCommandDisplay(data) {
     let name = data?.display_name || "";
     let commandText = data?.command || "";
@@ -58,14 +67,7 @@ function initGrid(load = true) {
     {headerCheckboxSelection: true, checkboxSelection: true, width: 50, suppressSizeToFit: true, sortable: false, filter: false},
     {field: "created_at", headerName: "Started", width: 175, suppressSizeToFit: true, sort: "desc",
       valueFormatter: p => p.value ? new Date(p.value * 1000).toLocaleString(undefined, {year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}) : ""},
-    {headerName: "Duration", width: 110, suppressSizeToFit: true, valueGetter: p => {
-        let d = p.data;
-        let start = Number(d.created_at);
-        if (!Number.isFinite(start) || start <= 0) return null;
-        let end = d.last_timestamp == null ? Date.now() / 1000 : Number(d.last_timestamp);
-        if (!Number.isFinite(end)) return 0;
-        return Math.max(0, end - start);
-      },
+    {headerName: "Duration", width: 110, suppressSizeToFit: true, valueGetter: p => getRunDuration(p.data),
       valueFormatter: p => fmtDuration(p.value),
       cellRenderer: p => {
         let duration = p.valueFormatted || fmtDuration(p.value);
