@@ -62,6 +62,7 @@ async function showExperiment(runIds) {
         <div><span>id:</span> <a href="/${id}">${id}</a></div>
         <div><span>trainer:</span> ${meta.trainer || "?"}</div>
         <div><span>status:</span> ${meta.status || "?"}</div>
+        <div><span>duration:</span> ${fmtDuration(getRunDuration(meta)) || "?"}</div>
         <div><span>branch:</span> ${meta.branch || "?"}</div>
         <div><span>dirty:</span> ${meta.dirty === 1 ? "true" : "false"}</div>
         <div><span>commit:</span> ${meta.commit_hash || "?"}</div>
