@@ -35,6 +35,7 @@ def write_ts(run_id: str, created_at: int, modified_at: int, override: bool = Tr
 def write_meta(run_id: str, meta: Mapping[str, Any]) -> None:
   existing = read_meta(run_id)
   existing.update(meta)
+  assert existing.get("run_id") == run_id
   modified_at = int(time.time())
   existing["last_change_timestamp"] = modified_at
   store_put(f"runs/{run_id}/metadata.json", json.dumps(existing))
