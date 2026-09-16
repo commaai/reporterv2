@@ -133,6 +133,7 @@ def reindex_all() -> int:
     db.row_factory = sqlite3.Row
     db.execute(RUNS_SCHEMA)
     db.execute("BEGIN IMMEDIATE")
+    db.execute("DELETE FROM runs WHERE run_id IS NULL")
 
     indexed_timestamps = {
       row["run_id"]: row["last_change_timestamp"]

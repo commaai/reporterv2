@@ -21,7 +21,7 @@ def read_meta(run_id: str) -> dict[str, Any]:
   raw = store_get(f"runs/{run_id}/metadata.json")
   if raw is None:
     return {}
-  return json.loads(raw)
+  return {**json.loads(raw), "run_id": run_id}
 
 
 def write_ts(run_id: str, created_at: int, modified_at: int, override: bool = True) -> None:
@@ -35,6 +35,7 @@ def write_ts(run_id: str, created_at: int, modified_at: int, override: bool = Tr
 def write_meta(run_id: str, meta: Mapping[str, Any]) -> None:
   existing = read_meta(run_id)
   existing.update(meta)
+  existing["run_id"] = run_id
   modified_at = int(time.time())
   existing["last_change_timestamp"] = modified_at
   store_put(f"runs/{run_id}/metadata.json", json.dumps(existing))
