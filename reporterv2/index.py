@@ -13,6 +13,8 @@ from .storage import store_list
 
 REINDEX_INTERVAL = 300
 REINDEX_FETCH_WORKERS = max(1, int(os.getenv("REPORTERV2_REINDEX_FETCH_WORKERS") or 16))
+# Reuse threads across refreshes so storage clients' per-thread pools stay bounded.
+_reindex_executor = ThreadPoolExecutor(max_workers=REINDEX_FETCH_WORKERS, thread_name_prefix="reporterv2-reindex")
 RUNS_SCHEMA = META_SCHEMA.replace("meta", "runs", 1)
 _last_reindex_elapsed: float | None = None
 
@@ -108,8 +110,7 @@ def _iter_changed_run_meta(changed_runs: list[tuple[str, int]], fetch_workers: i
     yield from (_fetch_run_meta(run) for run in changed_runs)
     return
 
-  with ThreadPoolExecutor(max_workers=fetch_workers, thread_name_prefix="reporterv2-reindex") as executor:
-    yield from executor.map(_fetch_run_meta, changed_runs)
+  yield from _reindex_executor.map(_fetch_run_meta, changed_runs)
 
 
 def _load_changed_runs(changed_runs: list[tuple[str, int]]) -> tuple[list[tuple[dict, int]], int]:
