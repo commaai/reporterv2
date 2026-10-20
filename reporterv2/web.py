@@ -75,7 +75,7 @@ def get_slurm_status(slurm_job_id: str, active_job_ids: set[str] | None = None) 
   if active_job_ids is None:
     active_job_ids = get_active_job_ids()
   base_id = slurm_job_id.split("_")[0]
-  if slurm_job_id in active_job_ids or base_id in active_job_ids:
+  if slurm_job_id in active_job_ids or base_id in active_job_ids or f"{slurm_job_id}+0" in active_job_ids:
     return "running"
   return "completed"
 
