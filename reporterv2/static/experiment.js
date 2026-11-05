@@ -161,10 +161,11 @@ function shortLabel(id, displayNames) {
   return truncateLabel(name, LEGEND_RUN_LABEL_MAX_LENGTH);
 }
 
-function formatLabel(runIds, id, key, chartTitle, displayNames) {
+function formatLabel(runIds, id, key, chartTitle, displayNames, full = false) {
   let suffix = key.slice(chartTitle.length).replace(/\/$/, "");  // certain keys have trailing slash
-  let label = runIds.length > 1 ? shortLabel(id, displayNames) + suffix : key;
-  return truncateLabel(label, LEGEND_LABEL_MAX_LENGTH);
+  let name = full ? displayNames[id] || id : shortLabel(id, displayNames);
+  let label = runIds.length > 1 ? name + suffix : key;
+  return full ? label : truncateLabel(label, LEGEND_LABEL_MAX_LENGTH);
 }
 
 const DEFAULT_LAYOUT = [
@@ -239,7 +240,7 @@ async function renderMetrics(runIds, container, displayNames) {
   let loc = (a, b) => a.localeCompare(b, undefined, {sensitivity: "base"});
   let superGroups = applyLayout(rules, [...metricKeys].sort(loc));
   let controls = document.createElement("div");
-  controls.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:12px";
+  controls.className = "metrics-controls";
   controls.innerHTML = `
     <input type="text" placeholder="search charts..." style="padding:4px 8px;font-size:13px;border:1px solid #c8d4e3;border-radius:4px;flex:1;min-width:0">
     <input class="smoothing-control" type="range" min="0" max="100" value="${smoothing}" aria-label="chart smoothing">`;
@@ -320,7 +321,8 @@ async function renderMetrics(runIds, container, displayNames) {
           }
           if (xToVal.size === 0) continue;
           let label = formatLabel(runIds, id, key, chartTitle, displayNames);
-          metricSeries.push({label, stroke: seriesColor(colorIdx), width: 1.5, spanGaps: true, value: (self, val) => formatMetricValue(val)});
+          let fullLabel = formatLabel(runIds, id, key, chartTitle, displayNames, true);
+          metricSeries.push({label, fullLabel, stroke: seriesColor(colorIdx), width: 1.5, spanGaps: true, value: (self, val) => formatMetricValue(val)});
           seriesData.push(xToVal);
           colorIdx++;
         }
@@ -353,6 +355,9 @@ async function renderMetrics(runIds, container, displayNames) {
         cursor: {drag: {x: true, y: true, uni: 25}},
       };
       let plot = new uPlot(opts, [xData, ...yDatas, ...smoothedData], plotEl);
+      plot.root.querySelectorAll(".u-legend .u-series").forEach((row, i) => {
+        row.title = series[i].fullLabel || series[i].label;
+      });
       chart.plot = plot;
       charts.push(chart);
       attachUPlotDownloadButton(box, plot, `${superTitle}/${chartTitle}`, {
